@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard PAS</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f4f6f9; padding: 20px; }
+        .card { border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .chart-wrapper { position: relative; width: 100%; }
+        /* Los contenedores de gráficos grandes */
+        #chartCategoriasContainer, #chartAvgContainer { min-height: 100px; } 
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 class="text-center text-primary mb-4">📊 Dashboard Personal (PAS)</h1>
+
+    <div class="row text-center mb-4">
+        <div class="col-md-4">
+            <div class="card p-4 text-white bg-primary">
+                <h2 id="countPeople">-</h2>
+                <div>Total Personas</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-4 text-white bg-success">
+                <h2 id="countCategories">-</h2>
+                <div>Categorías Distintas</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-4 text-white bg-info">
+                <h2 id="countCenters">-</h2>
+                <div>Centros/Facultades</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card p-4">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h5 class="mb-0">📋 Puestos por Categoría (Cantidad)</h5>
+            <div class="btn-group btn-group-sm" role="group">
+                <input type="radio" class="btn-check" name="btnradio" id="btnAll" autocomplete="off" checked onclick="updateCategoryChart('ALL')">
+                <label class="btn btn-outline-primary" for="btnAll">Todos</label>
+
+                <input type="radio" class="btn-check" name="btnradio" id="btnFunc" autocomplete="off" onclick="updateCategoryChart('A')">
+                <label class="btn btn-outline-primary" for="btnFunc" title="Empiezan por A">Funcionarios (A)</label>
+
+                <input type="radio" class="btn-check" name="btnradio" id="btnInt" autocomplete="off" onclick="updateCategoryChart('I')">
+                <label class="btn btn-outline-primary" for="btnInt" title="Empiezan por I">Interinos (I)</label>
+            </div>
+        </div>
+
+        <div id="chartCategoriasContainer" class="chart-wrapper">
+            <canvas id="chartCategorias"></canvas>
+        </div>
+        <small class="text-muted mt-2">Haz clic en una barra para ver el detalle de personas.</small>
+    </div>
+
+    <div class="card p-4 border-warning border-2">
+        <h5 class="text-warning-emphasis">⏳ Antigüedad Media por Puesto (De menos a más)</h5>
+        <p class="text-muted small">Muestra la media de años que llevan trabajando las personas de cada categoría.</p>
+        
+        <div id="chartAvgContainer" class="chart-wrapper">
+            <canvas id="chartAvgSeniority"></canvas>
+        </div>
+    </div>
+
+    <div class="card p-4">
+        <h5>🏫 Top Centros</h5>
+        <div class="chart-wrapper" style="height: 300px;">
+            <canvas id="chartCentros"></canvas>
+        </div>
+    </div>
+
+    <div class="card p-4">
+        <div class="d-flex justify-content-between mb-3">
+            <h4 id="tableTitle">Listado de Personal</h4>
+            <input type="text" id="searchInput" class="form-control w-25" placeholder="Buscar nombre...">
+        </div>
+        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+            <table class="table table-hover">
+                <thead class="table-dark sticky-top">
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Categoría</th>
+                        <th>Centro</th>
+                        <th>Antigüedad Aprox.</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Variables globales
+    let globalData = [];
+    let globalCategoriesCount = {}; 
+    let categoryChartInstance = null; 
+    let avgChartInstance = null; // Instancia para el nuevo gráfico de medias
+
+    // Cargar datos
+    async function loadData() {
+        try {
+            const response = await fetch('/api/pas');
+            globalData = await response.json();
+            processData(globalData);
+        } catch (error) {
+            console.error("Error cargando datos:", error);
+            alert("Error conectando con el servidor Node.");
+        }
+    }
+
+    function cleanCenterName(urlOrName) {
+        if (!urlOrName) return "Sin Asignar";
+        if (urlOrName.includes('http')) {
+            const parts = urlOrName.split('/');
+            let name = parts[parts.length - 1] || parts[parts.length - 2];
+            name = name.replace(/^\d+-/, '').replace(/-/g, ' ');
+            return name.charAt(0).toUpperCase() + name.slice(1);
+        }
+        return urlOrName;
+    }
+
+    function processData(data) {
+        const centers = {};
+        globalCategoriesCount = {}; 
+
+        // Objetos auxiliares para calcular la media
+        // Estructura: { "Categoria X": { totalDias: 5000, personas: 2 } }
+        const seniorityStats = {};
+
+        data.forEach(row => {
+            const cat = row.ou_categoriaPAS || "Sin Categoría";
+            const centerRaw = row.ou_adscritoACentro;
+            const center = cleanCenterName(centerRaw);
+            
+            row.cleanCenter = center;
+
+            // 1. Conteo simple
+            globalCategoriesCount[cat] = (globalCategoriesCount[cat] || 0) + 1;
+            centers[center] = (centers[center] || 0) + 1;
+
+            // 2. Acumulación para media de antigüedad
+            const dias = parseInt(row.antiguedad_dias) || 0;
+            if (dias > 0) { // Solo contamos si tiene datos válidos
+                if (!seniorityStats[cat]) {
+                    seniorityStats[cat] = { totalDias: 0, count: 0 };
+                }
+                seniorityStats[cat].totalDias += dias;
+                seniorityStats[cat].count += 1;
+            }
+        });
+
+        // Actualizar KPIs
+        document.getElementById('countPeople').innerText = data.length;
+        document.getElementById('countCategories').innerText = Object.keys(globalCategoriesCount).length;
+        document.getElementById('countCenters').innerText = Object.keys(centers).length;
+
+        // Renderizar gráficos
+        renderCenterChart(centers);
+        updateCategoryChart('ALL'); 
+        renderAvgSeniorityChart(seniorityStats); // <--- NUEVO GRÁFICO
+        renderTable(data);
+    }
+
+    // --- GRÁFICO 1: CANTIDAD POR CATEGORÍA ---
+    function updateCategoryChart(filterType) {
+        const allKeys = Object.keys(globalCategoriesCount);
+        let filteredKeys = [];
+
+        if (filterType === 'ALL') filteredKeys = allKeys;
+        else if (filterType === 'A') filteredKeys = allKeys.filter(key => key.toUpperCase().startsWith('A'));
+        else if (filterType === 'I') filteredKeys = allKeys.filter(key => key.toUpperCase().startsWith('I'));
+
+        filteredKeys.sort((a, b) => globalCategoriesCount[b] - globalCategoriesCount[a]);
+
+        if (categoryChartInstance) categoryChartInstance.destroy();
+
+        const barHeight = 30; 
+        const containerHeight = Math.max(150, filteredKeys.length * barHeight);
+        document.getElementById('chartCategoriasContainer').style.height = `${containerHeight}px`;
+
+        const ctxCat = document.getElementById('chartCategorias').getContext('2d');
+        let barColor = '#0d6efd'; 
+        if (filterType === 'A') barColor = '#198754'; 
+        if (filterType === 'I') barColor = '#ffc107'; 
+
+        categoryChartInstance = new Chart(ctxCat, {
+            type: 'bar',
+            data: {
+                labels: filteredKeys,
+                datasets: [{
+                    label: 'Número de Puestos',
+                    data: filteredKeys.map(k => globalCategoriesCount[k]),
+                    backgroundColor: barColor,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.9
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { x: { position: 'top' } },
+                onClick: (e, els) => {
+                    if(els.length > 0) {
+                        const label = filteredKeys[els[0].index];
+                        filterTable('ou_categoriaPAS', label);
+                    }
+                }
+            }
+        });
+    }
+
+    // --- GRÁFICO 2 (NUEVO): ANTIGÜEDAD MEDIA ---
+    function renderAvgSeniorityChart(statsObj) {
+        // 1. Convertir objeto stats a array para ordenar
+        const avgArray = Object.keys(statsObj).map(cat => {
+            const avgDays = statsObj[cat].totalDias / statsObj[cat].count;
+            const avgYears = (avgDays / 365).toFixed(1); // Convertir a años con 1 decimal
+            return {
+                category: cat,
+                avg: parseFloat(avgYears)
+            };
+        });
+
+        // 2. Ordenar de MENOS a MÁS (Ascendente)
+        avgArray.sort((a, b) => a.avg - b.avg);
+
+        // 3. Preparar datos para Chart.js
+        const labels = avgArray.map(item => item.category);
+        const dataValues = avgArray.map(item => item.avg);
+
+        // 4. Configurar altura dinámica
+        if (avgChartInstance) avgChartInstance.destroy();
+        const barHeight = 30; 
+        const containerHeight = Math.max(150, labels.length * barHeight);
+        document.getElementById('chartAvgContainer').style.height = `${containerHeight}px`;
+
+        // 5. Renderizar
+        const ctxAvg = document.getElementById('chartAvgSeniority').getContext('2d');
+        avgChartInstance = new Chart(ctxAvg, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Media de Años de Antigüedad',
+                    data: dataValues,
+                    backgroundColor: 'rgba(255, 159, 64, 0.7)', // Naranja
+                    borderColor: 'rgba(255, 159, 64, 1)',
+                    borderWidth: 1,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.9
+                }]
+            },
+            options: {
+                indexAxis: 'y', // Horizontal
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { 
+                    x: { 
+                        position: 'top',
+                        title: { display: true, text: 'Años (Media)' } 
+                    } 
+                },
+                onClick: (e, els) => {
+                    if(els.length > 0) {
+                        const label = labels[els[0].index];
+                        filterTable('ou_categoriaPAS', label);
+                    }
+                }
+            }
+        });
+    }
+
+    // --- GRÁFICO 3: CENTROS ---
+    function renderCenterChart(centers) {
+        const ctxCent = document.getElementById('chartCentros').getContext('2d');
+        const sortedCenters = Object.keys(centers).sort((a,b) => centers[b] - centers[a]).slice(0, 10);
+        
+        new Chart(ctxCent, {
+            type: 'doughnut',
+            data: {
+                labels: sortedCenters,
+                datasets: [{
+                    data: sortedCenters.map(k => centers[k]),
+                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: {boxWidth: 10, font:{size:11}} } }
+            }
+        });
+    }
+
+    // --- TABLA ---
+    function renderTable(data) {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        
+        data.slice(0, 200).forEach(row => {
+            const antiguedad = row.antiguedad_texto || 'N/A';
+            const dias = parseInt(row.antiguedad_dias) || 0;
+            
+            let badgeColor = 'bg-secondary';
+            if (dias > 7300) badgeColor = 'bg-success'; 
+            else if (dias > 3650) badgeColor = 'bg-primary'; 
+            
+            tbody.innerHTML += `<tr>
+                <td>
+                    <strong>${row.foaf_name || 'Desconocido'}</strong>
+                    <br><small style="font-size:10px"><a href="${row.uri}" target="_blank" class="text-muted">Ver Ficha</a></small>
+                </td>
+                <td>${row.ou_categoriaPAS || '-'}</td>
+                <td>${row.cleanCenter || '-'}</td>
+                <td><span class="badge ${badgeColor}">${antiguedad}</span></td>
+            </tr>`;
+        });
+    }
+
+    function filterTable(field, value) {
+        document.getElementById('tableTitle').innerText = `Filtrado por: ${value}`;
+        const filtered = globalData.filter(row => row[field] === value);
+        renderTable(filtered);
+        document.querySelector('.table-responsive').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    document.getElementById('searchInput').addEventListener('keyup', (e) => {
+        const term = e.target.value.toLowerCase();
+        const filtered = globalData.filter(row => 
+            (row.foaf_name && row.foaf_name.toLowerCase().includes(term)) ||
+            (row.ou_categoriaPAS && row.ou_categoriaPAS.toLowerCase().includes(term))
+        );
+        renderTable(filtered);
+    });
+
+    loadData();
+</script>
+</body>
+</html>
