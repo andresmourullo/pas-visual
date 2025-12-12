@@ -6,6 +6,7 @@
     <title>Dashboard PAS</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
     <style>
         body { background-color: #f4f6f9; padding: 20px; }
         .card { border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
@@ -108,12 +109,25 @@
     // Cargar datos
     async function loadData() {
         try {
-            const response = await fetch('/api/pas');
-            globalData = await response.json();
-            processData(globalData);
+            // 1. Pedimos el archivo CSV
+            const response = await fetch('./datos_pas.csv');
+            
+            // 2. Obtenemos el texto crudo
+            const csvText = await response.text();
+
+            // 3. Lo "parseamos" (traducimos) a objetos
+            Papa.parse(csvText, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    globalData = results.data;
+                    processData(globalData); // ¡A funcionar!
+                }
+            });
+
         } catch (error) {
             console.error("Error cargando datos:", error);
-            alert("Error conectando con el servidor Node.");
+            alert("Error cargando el archivo CSV.");
         }
     }
 
