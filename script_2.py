@@ -130,20 +130,60 @@ def extraer_datos_pdf(url_pdf, bolsa_info, headers):
                         
                         idx_nombre, idx_situacion = -1, -1
                         
+                        # Función de limpieza robusta: mayúsculas, remoción de acentos y caracteres especiales comunes
+                        def limpiar_y_mayus(texto):
+                            if not texto: return ""
+                            texto = texto.upper().strip()
+                            # Reemplazos de acentos y Ñ para SITUACIÓN/SITUACION y ORDEN/ÓRDEN
+                            texto = texto.replace('Á', 'A').replace('É', 'E').replace('Í', 'I').replace('Ó', 'O').replace('Ú', 'U')
+                            texto = texto.replace('Ñ', 'N')
+                            # Eliminamos espacios y algunos caracteres de puntuación para una coincidencia más estricta
+                            texto = texto.replace(' ', '').replace('.', '').replace(',', '').replace(':', '')
+                            return texto
+
+                        # Generar una lista de cabeceras limpias
+                        cabeceras_limpias = [limpiar_y_mayus(h) for h in header]
+
                         try:
-                            # CORRECCIÓN CLAVE 1: Buscar 'NOMBRE' en lugar de 'NOMBRE COMPLETO'
-                            idx_nombre = next(idx for idx, h in enumerate(header) if 'NOMBRE' in h.upper() and 'COMPLETO' not in h.upper())
+                            # --- BÚSQUEDA DEL ÍNDICE DE NOMBRE ---
                             
-                            # CORRECCIÓN CLAVE 2: Buscar 'SITUACIÓN'
-                            idx_situacion = next(idx for idx, h in enumerate(header) if 'SITUACIÓN' in h.upper())
+                            # Buscamos 'NOMBRE' o 'APELLIDOS' en la cabecera limpia (contempla todas las variaciones)
+                            idx_nombre_candidatos = []
+                            for idx, h_limpia in enumerate(cabeceras_limpias):
+                                
+                                # Si encontramos 'NOMBRE' o 'APELLIDOS' en la cadena limpia
+                                if 'NOMBRE' in h_limpia or 'APELLIDOS' in h_limpia:
+                                    # Usamos la cabecera original en mayúsculas para verificar si es 'COMPLETO' o 'Y'
+                                    h_original_mayus = header[idx].upper() 
+                                    
+                                    # Prioridad 1: Si es "NOMBRE COMPLETO" o "APELLIDOS Y NOMBRE" (más específico)
+                                    if 'COMPLETO' in h_original_mayus or ('APELLIDOS' in h_limpia and 'NOMBRE' in h_limpia):
+                                        idx_nombre = idx
+                                        break
+                                    # Guardar como candidato de prioridad 2 (ej. solo "NOMBRE" o solo "APELLIDOS")
+                                    idx_nombre_candidatos.append(idx)
+                                
+                            # Si no se encontró la prioridad 1, tomamos el primer candidato simple
+                            if idx_nombre == -1 and idx_nombre_candidatos:
+                                idx_nombre = idx_nombre_candidatos[0]
+                                
+                            # Si todavía no hay índice de nombre, se levanta error para pasar al siguiente bucle
+                            if idx_nombre == -1:
+                                raise StopIteration("No se encontró columna de Nombre.")
+                                
+                            # --- BÚSQUEDA DEL ÍNDICE DE SITUACIÓN ---
+                            
+                            # Buscar SITUACION (sin acento) en las cabeceras limpias
+                            idx_situacion = next(idx for idx, h_limpia in enumerate(cabeceras_limpias) if 'SITUACION' in h_limpia)
                             
                             # Log de la cabecera real
                             if j == 0 and i == 0:
                                 print(f"[DEBUG] Cabecera de la primera tabla encontrada: {header}")
+                                print(f"[DEBUG] Cabeceras limpias (muestra): {cabeceras_limpias[:5]}")
                                 print(f"[DEBUG] Índices de columnas encontrados: Nombre={idx_nombre}, Situación={idx_situacion}")
                                 
                         except StopIteration:
-                            print(f"[DEBUG] No se encontraron las columnas clave ('NOMBRE' o 'SITUACIÓN') en esta tabla.")
+                            print(f"[DEBUG] No se encontraron las columnas clave ('NOMBRE'/'APELLIDOS' o 'SITUACIÓN') en esta tabla.")
                             continue
                             
                         # Procesar las filas de datos
