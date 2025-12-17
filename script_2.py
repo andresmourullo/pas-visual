@@ -198,7 +198,7 @@ def extraer_datos_pdf(url_pdf, bolsa_info, headers):
                                 # Si la situación está vacía, a veces está en las columnas siguientes debido a la doble cabecera.
                                 # Por simplicidad, tomamos la situación que ya está en la columna SITUACIÓN (índice idx_situacion).
                                 
-                                if nombre_limpio and situacion_limpia:
+                                if nombre_limpio:  # Solo agregar si hay un nombre válido
                                     
                                     # Log de la primera fila extraída para verificar el formato
                                     if filas_extraidas_tabla == 0:

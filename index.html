@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard PAS</title>
+    <title>Dashboard PAS Integral</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
@@ -11,20 +11,25 @@
         body { background-color: #f4f6f9; padding: 20px; }
         .card { border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .chart-wrapper { position: relative; width: 100%; }
-        /* Los contenedores de gráficos grandes */
-        #chartCategoriasContainer, #chartAvgContainer { min-height: 100px; } 
+        #chartCategoriasContainer, #chartAvgContainer { min-height: 100px; }
+        
+        /* Estilos específicos para la sección de Bolsas */
+        .badge-status-trabajando { background-color: #198754; color: white; }
+        .badge-status-disponible { background-color: #0d6efd; color: white; }
+        .badge-status-exclusion { background-color: #dc3545; color: white; }
+        .badge-status-suspension { background-color: #ffc107; color: black; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1 class="text-center text-primary mb-4">📊 Dashboard Personal (PAS)</h1>
+    <h1 class="text-center text-primary mb-5">📊 Dashboard Integral (PAS + Bolsas)</h1>
 
     <div class="row text-center mb-4">
         <div class="col-md-4">
             <div class="card p-4 text-white bg-primary">
                 <h2 id="countPeople">-</h2>
-                <div>Total Personas</div>
+                <div>Total Personas (PAS)</div>
             </div>
         </div>
         <div class="col-md-4">
@@ -41,47 +46,95 @@
         </div>
     </div>
 
-    <div class="card p-4">
+    <div class="card p-4 h-100">
         <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="mb-0">📋 Puestos por Categoría (Cantidad)</h5>
+            <h5 class="mb-0">📋 Puestos por Categoría</h5>
             <div class="btn-group btn-group-sm" role="group">
                 <input type="radio" class="btn-check" name="btnradio" id="btnAll" autocomplete="off" checked onclick="updateCategoryChart('ALL')">
                 <label class="btn btn-outline-primary" for="btnAll">Todos</label>
-
                 <input type="radio" class="btn-check" name="btnradio" id="btnFunc" autocomplete="off" onclick="updateCategoryChart('A')">
-                <label class="btn btn-outline-primary" for="btnFunc" title="Empiezan por A">Funcionarios (A)</label>
-
-                <input type="radio" class="btn-check" name="btnradio" id="btnInt" autocomplete="off" onclick="updateCategoryChart('I')">
-                <label class="btn btn-outline-primary" for="btnInt" title="Empiezan por I">Interinos (I)</label>
+                <label class="btn btn-outline-primary" for="btnFunc">Func (A)</label>
             </div>
         </div>
-
         <div id="chartCategoriasContainer" class="chart-wrapper">
             <canvas id="chartCategorias"></canvas>
         </div>
-        <small class="text-muted mt-2">Haz clic en una barra para ver el detalle de personas.</small>
     </div>
 
-    <div class="card p-4 border-warning border-2">
-        <h5 class="text-warning-emphasis">⏳ Antigüedad Media por Puesto (De menos a más)</h5>
-        <p class="text-muted small">Muestra la media de años que llevan trabajando las personas de cada categoría.</p>
-        
-        <div id="chartAvgContainer" class="chart-wrapper">
-            <canvas id="chartAvgSeniority"></canvas>
-        </div>
-    </div>
-
-    <div class="card p-4">
+    <div class="card p-4 h-100">
         <h5>🏫 Top Centros</h5>
         <div class="chart-wrapper" style="height: 300px;">
             <canvas id="chartCentros"></canvas>
         </div>
     </div>
 
-    <div class="card p-4">
+    <div class="card p-4 border-warning border-2 mt-2">
+        <h5 class="text-warning-emphasis">⏳ Antigüedad Media por Puesto (De menos a más)</h5>
+        <div id="chartAvgContainer" class="chart-wrapper">
+            <canvas id="chartAvgSeniority"></canvas>
+        </div>
+    </div>
+
+    <div class="card p-4 mt-5 border-primary border-3">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="text-primary m-0">💼 Monitor de Bolsas de Trabajo</h3>
+            <span class="badge bg-light text-dark border">Datos de bolsas_limpias.json</span>
+        </div>
+        
+        <div class="mb-4">
+            <label for="bolsaSelect" class="form-label fw-bold">Selecciona una Bolsa para ver su estado:</label>
+            <select id="bolsaSelect" class="form-select" onchange="loadBolsaDetails()">
+                <option value="">Cargando bolsas...</option>
+            </select>
+        </div>
+
+        <div id="bolsaDetailsPanel" style="display:none;">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card bg-light p-3 text-center h-100">
+                        <h6>Estado de la Bolsa</h6>
+                        <div style="height: 200px;">
+                            <canvas id="chartBolsaStatus"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-8">
+                    <div class="row text-center mb-3">
+                        <div class="col-4">
+                            <h3 id="bolsaTotal" class="fw-bold">-</h3>
+                            <small>Total Lista</small>
+                        </div>
+                        <div class="col-4">
+                            <h3 id="bolsaWorking" class="text-success fw-bold">-</h3>
+                            <small>Trabajando</small>
+                        </div>
+                        <div class="col-4">
+                            <h3 id="bolsaAvailable" class="text-primary fw-bold">-</h3>
+                            <small>Disponibles</small>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive border rounded bg-white" style="max-height: 250px; overflow-y: auto;">
+                        <table class="table table-sm table-striped mb-0">
+                            <thead class="table-dark sticky-top">
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Situación</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bolsaTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card p-4 mt-4">
         <div class="d-flex justify-content-between mb-3">
-            <h4 id="tableTitle">Listado de Personal</h4>
-            <input type="text" id="searchInput" class="form-control w-25" placeholder="Buscar nombre...">
+            <h4 id="tableTitle">Listado General de Personal (PAS)</h4>
+            <input type="text" id="searchInput" class="form-control w-25" placeholder="Buscar nombre en PAS...">
         </div>
         <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
             <table class="table table-hover">
@@ -90,7 +143,7 @@
                         <th>Nombre</th>
                         <th>Categoría</th>
                         <th>Centro</th>
-                        <th>Antigüedad Aprox.</th>
+                        <th>Antigüedad</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody"></tbody>
@@ -100,34 +153,29 @@
 </div>
 
 <script>
-    // Variables globales
-    let globalData = [];
+    // ==========================================
+    //           LÓGICA DEL PAS (CSV)
+    // ==========================================
+    let globalDataPAS = [];
     let globalCategoriesCount = {}; 
     let categoryChartInstance = null; 
-    let avgChartInstance = null; // Instancia para el nuevo gráfico de medias
+    let avgChartInstance = null;
 
-    // Cargar datos
-    async function loadData() {
+    async function loadPASData() {
         try {
-            // 1. Pedimos el archivo CSV
             const response = await fetch('./datos_pas.csv');
-            
-            // 2. Obtenemos el texto crudo
             const csvText = await response.text();
-
-            // 3. Lo "parseamos" (traducimos) a objetos
             Papa.parse(csvText, {
                 header: true,
                 skipEmptyLines: true,
                 complete: function(results) {
-                    globalData = results.data;
-                    processData(globalData); // ¡A funcionar!
+                    globalDataPAS = results.data;
+                    processPASData(globalDataPAS);
                 }
             });
-
         } catch (error) {
-            console.error("Error cargando datos:", error);
-            alert("Error cargando el archivo CSV.");
+            console.error("Error PAS:", error);
+            // No alertamos crítico para que si falla uno, el otro siga
         }
     }
 
@@ -142,56 +190,45 @@
         return urlOrName;
     }
 
-    function processData(data) {
+    function processPASData(data) {
         const centers = {};
         globalCategoriesCount = {}; 
-
-        // Objetos auxiliares para calcular la media
-        // Estructura: { "Categoria X": { totalDias: 5000, personas: 2 } }
         const seniorityStats = {};
 
         data.forEach(row => {
             const cat = row.ou_categoriaPAS || "Sin Categoría";
-            const centerRaw = row.ou_adscritoACentro;
-            const center = cleanCenterName(centerRaw);
-            
+            const center = cleanCenterName(row.ou_adscritoACentro);
             row.cleanCenter = center;
 
-            // 1. Conteo simple
+            // Counts
             globalCategoriesCount[cat] = (globalCategoriesCount[cat] || 0) + 1;
             centers[center] = (centers[center] || 0) + 1;
 
-            // 2. Acumulación para media de antigüedad
+            // Stats Avg
             const dias = parseInt(row.antiguedad_dias) || 0;
-            if (dias > 0) { // Solo contamos si tiene datos válidos
-                if (!seniorityStats[cat]) {
-                    seniorityStats[cat] = { totalDias: 0, count: 0 };
-                }
+            if (dias > 0) { 
+                if (!seniorityStats[cat]) seniorityStats[cat] = { totalDias: 0, count: 0 };
                 seniorityStats[cat].totalDias += dias;
                 seniorityStats[cat].count += 1;
             }
         });
 
-        // Actualizar KPIs
         document.getElementById('countPeople').innerText = data.length;
         document.getElementById('countCategories').innerText = Object.keys(globalCategoriesCount).length;
         document.getElementById('countCenters').innerText = Object.keys(centers).length;
 
-        // Renderizar gráficos
         renderCenterChart(centers);
         updateCategoryChart('ALL'); 
-        renderAvgSeniorityChart(seniorityStats); // <--- NUEVO GRÁFICO
-        renderTable(data);
+        renderAvgSeniorityChart(seniorityStats);
+        renderTablePAS(data);
     }
 
-    // --- GRÁFICO 1: CANTIDAD POR CATEGORÍA ---
     function updateCategoryChart(filterType) {
         const allKeys = Object.keys(globalCategoriesCount);
         let filteredKeys = [];
 
         if (filterType === 'ALL') filteredKeys = allKeys;
         else if (filterType === 'A') filteredKeys = allKeys.filter(key => key.toUpperCase().startsWith('A'));
-        else if (filterType === 'I') filteredKeys = allKeys.filter(key => key.toUpperCase().startsWith('I'));
 
         filteredKeys.sort((a, b) => globalCategoriesCount[b] - globalCategoriesCount[a]);
 
@@ -201,165 +238,223 @@
         const containerHeight = Math.max(150, filteredKeys.length * barHeight);
         document.getElementById('chartCategoriasContainer').style.height = `${containerHeight}px`;
 
-        const ctxCat = document.getElementById('chartCategorias').getContext('2d');
-        let barColor = '#0d6efd'; 
-        if (filterType === 'A') barColor = '#198754'; 
-        if (filterType === 'I') barColor = '#ffc107'; 
+        const ctx = document.getElementById('chartCategorias').getContext('2d');
+        let barColor = filterType === 'A' ? '#198754' : '#0d6efd';
 
-        categoryChartInstance = new Chart(ctxCat, {
+        categoryChartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: filteredKeys,
                 datasets: [{
-                    label: 'Número de Puestos',
+                    label: 'Puestos',
                     data: filteredKeys.map(k => globalCategoriesCount[k]),
-                    backgroundColor: barColor,
-                    barPercentage: 0.8,
-                    categoryPercentage: 0.9
+                    backgroundColor: barColor
                 }]
             },
             options: {
                 indexAxis: 'y',
-                responsive: true,
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
-                scales: { x: { position: 'top' } },
                 onClick: (e, els) => {
-                    if(els.length > 0) {
-                        const label = filteredKeys[els[0].index];
-                        filterTable('ou_categoriaPAS', label);
-                    }
+                    if(els.length > 0) filterTablePAS('ou_categoriaPAS', filteredKeys[els[0].index]);
                 }
             }
         });
     }
 
-    // --- GRÁFICO 2 (NUEVO): ANTIGÜEDAD MEDIA ---
     function renderAvgSeniorityChart(statsObj) {
-        // 1. Convertir objeto stats a array para ordenar
-        const avgArray = Object.keys(statsObj).map(cat => {
-            const avgDays = statsObj[cat].totalDias / statsObj[cat].count;
-            const avgYears = (avgDays / 365).toFixed(1); // Convertir a años con 1 decimal
-            return {
-                category: cat,
-                avg: parseFloat(avgYears)
-            };
-        });
+        const avgArray = Object.keys(statsObj).map(cat => ({
+            category: cat,
+            avg: parseFloat((statsObj[cat].totalDias / statsObj[cat].count / 365).toFixed(1))
+        })).sort((a, b) => a.avg - b.avg);
 
-        // 2. Ordenar de MENOS a MÁS (Ascendente)
-        avgArray.sort((a, b) => a.avg - b.avg);
-
-        // 3. Preparar datos para Chart.js
-        const labels = avgArray.map(item => item.category);
-        const dataValues = avgArray.map(item => item.avg);
-
-        // 4. Configurar altura dinámica
         if (avgChartInstance) avgChartInstance.destroy();
-        const barHeight = 30; 
-        const containerHeight = Math.max(150, labels.length * barHeight);
+        
+        const containerHeight = Math.max(150, avgArray.length * 30);
         document.getElementById('chartAvgContainer').style.height = `${containerHeight}px`;
 
-        // 5. Renderizar
-        const ctxAvg = document.getElementById('chartAvgSeniority').getContext('2d');
-        avgChartInstance = new Chart(ctxAvg, {
+        const ctx = document.getElementById('chartAvgSeniority').getContext('2d');
+        avgChartInstance = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: labels,
+                labels: avgArray.map(i => i.category),
                 datasets: [{
-                    label: 'Media de Años de Antigüedad',
-                    data: dataValues,
-                    backgroundColor: 'rgba(255, 159, 64, 0.7)', // Naranja
+                    label: 'Media Años',
+                    data: avgArray.map(i => i.avg),
+                    backgroundColor: 'rgba(255, 159, 64, 0.7)',
                     borderColor: 'rgba(255, 159, 64, 1)',
-                    borderWidth: 1,
-                    barPercentage: 0.8,
-                    categoryPercentage: 0.9
+                    borderWidth: 1
                 }]
             },
             options: {
-                indexAxis: 'y', // Horizontal
-                responsive: true,
+                indexAxis: 'y',
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { 
-                    x: { 
-                        position: 'top',
-                        title: { display: true, text: 'Años (Media)' } 
-                    } 
-                },
-                onClick: (e, els) => {
-                    if(els.length > 0) {
-                        const label = labels[els[0].index];
-                        filterTable('ou_categoriaPAS', label);
-                    }
-                }
+                plugins: { legend: { display: false } }
             }
         });
     }
 
-    // --- GRÁFICO 3: CENTROS ---
     function renderCenterChart(centers) {
-        const ctxCent = document.getElementById('chartCentros').getContext('2d');
-        const sortedCenters = Object.keys(centers).sort((a,b) => centers[b] - centers[a]).slice(0, 10);
+        const ctx = document.getElementById('chartCentros').getContext('2d');
+        const sorted = Object.keys(centers).sort((a,b) => centers[b] - centers[a]).slice(0, 10);
         
-        new Chart(ctxCent, {
+        new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: sortedCenters,
+                labels: sorted,
                 datasets: [{
-                    data: sortedCenters.map(k => centers[k]),
+                    data: sorted.map(k => centers[k]),
                     backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40']
                 }]
             },
             options: {
-                responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom', labels: {boxWidth: 10, font:{size:11}} } }
+                plugins: { legend: { position: 'bottom', labels: {boxWidth: 10, font:{size:10}} } }
             }
         });
     }
 
-    // --- TABLA ---
-    function renderTable(data) {
+    function renderTablePAS(data) {
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
-        
         data.slice(0, 200).forEach(row => {
-            const antiguedad = row.antiguedad_texto || 'N/A';
             const dias = parseInt(row.antiguedad_dias) || 0;
-            
-            let badgeColor = 'bg-secondary';
-            if (dias > 7300) badgeColor = 'bg-success'; 
-            else if (dias > 3650) badgeColor = 'bg-primary'; 
+            let badge = 'bg-secondary';
+            if (dias > 7300) badge = 'bg-success'; 
+            else if (dias > 3650) badge = 'bg-primary'; 
             
             tbody.innerHTML += `<tr>
-                <td>
-                    <strong>${row.foaf_name || 'Desconocido'}</strong>
-                    <br><small style="font-size:10px"><a href="${row.uri}" target="_blank" class="text-muted">Ver Ficha</a></small>
-                </td>
-                <td>${row.ou_categoriaPAS || '-'}</td>
-                <td>${row.cleanCenter || '-'}</td>
-                <td><span class="badge ${badgeColor}">${antiguedad}</span></td>
+                <td><strong>${row.foaf_name}</strong><br><small><a href="${row.uri}" target="_blank">Ficha</a></small></td>
+                <td>${row.ou_categoriaPAS}</td>
+                <td>${row.cleanCenter}</td>
+                <td><span class="badge ${badge}">${row.antiguedad_texto || 'N/A'}</span></td>
             </tr>`;
         });
     }
 
-    function filterTable(field, value) {
+    function filterTablePAS(field, value) {
         document.getElementById('tableTitle').innerText = `Filtrado por: ${value}`;
-        const filtered = globalData.filter(row => row[field] === value);
-        renderTable(filtered);
-        document.querySelector('.table-responsive').scrollIntoView({ behavior: 'smooth' });
+        renderTablePAS(globalDataPAS.filter(row => row[field] === value));
+        document.querySelector('#tableBody').scrollIntoView({ behavior: 'smooth' });
     }
 
     document.getElementById('searchInput').addEventListener('keyup', (e) => {
         const term = e.target.value.toLowerCase();
-        const filtered = globalData.filter(row => 
+        renderTablePAS(globalDataPAS.filter(row => 
             (row.foaf_name && row.foaf_name.toLowerCase().includes(term)) ||
             (row.ou_categoriaPAS && row.ou_categoriaPAS.toLowerCase().includes(term))
-        );
-        renderTable(filtered);
+        ));
     });
 
-    loadData();
+    // ==========================================
+    //           LÓGICA DE BOLSAS (JSON)
+    // ==========================================
+    let globalDataBolsas = [];
+    let bolsaChartInstance = null;
+
+    async function loadBolsasData() {
+        try {
+            const response = await fetch('./bolsas_limpias.json');
+            globalDataBolsas = await response.json();
+            
+            // Llenar Select
+            const select = document.getElementById('bolsaSelect');
+            const uniqueBolsas = [...new Set(globalDataBolsas.map(d => d.bolsa))].sort();
+            select.innerHTML = '<option value="" disabled selected>-- Elige una Bolsa --</option>';
+            uniqueBolsas.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b;
+                opt.innerText = b;
+                select.appendChild(opt);
+            });
+
+        } catch (error) {
+            console.error("Error Bolsas:", error);
+            const sel = document.getElementById('bolsaSelect');
+            sel.innerHTML = '<option>Error: Falta bolsas_limpias.json</option>';
+        }
+    }
+
+    function loadBolsaDetails() {
+        const selected = document.getElementById('bolsaSelect').value;
+        const panel = document.getElementById('bolsaDetailsPanel');
+        
+        // 1. Primero filtramos por la bolsa seleccionada (con duplicados)
+        const rawData = globalDataBolsas.filter(d => d.bolsa === selected);
+
+        // 2. NUEVO: Eliminamos duplicados basándonos en el nombre
+        const seen = new Set();
+        const data = rawData.filter(item => {
+            const duplicate = seen.has(item.nombre);
+            seen.add(item.nombre);
+            return !duplicate; // Solo lo guardamos si NO lo hemos visto antes
+        });
+
+        if(data.length > 0) {
+            panel.style.display = 'block';
+            
+            // Métricas (Ahora usan 'data' que ya no tiene duplicados)
+            document.getElementById('bolsaTotal').innerText = data.length;
+            document.getElementById('bolsaWorking').innerText = data.filter(d => d.situacion.toLowerCase().includes('trabajando')).length;
+            document.getElementById('bolsaAvailable').innerText = data.filter(d => d.situacion.toLowerCase().includes('disponible')).length;
+
+            // Gráfico
+            renderBolsaChart(data);
+
+            // Tabla Mini
+            const tbody = document.getElementById('bolsaTableBody');
+            tbody.innerHTML = '';
+            data.forEach(row => {
+                let badgeClass = 'badge bg-secondary';
+                const s = row.situacion.toLowerCase();
+                if(s.includes('trabajando')) badgeClass = 'badge badge-status-trabajando';
+                else if(s.includes('disponible')) badgeClass = 'badge badge-status-disponible';
+                else if(s.includes('exclusión')) badgeClass = 'badge badge-status-exclusion';
+                else if(s.includes('suspensión')) badgeClass = 'badge badge-status-suspension';
+
+                tbody.innerHTML += `<tr>
+                    <td>${row.nombre}</td>
+                    <td><span class="${badgeClass}">${row.situacion}</span></td>
+                </tr>`;
+            });
+        }
+    }
+
+    function renderBolsaChart(data) {
+        const stats = {};
+        data.forEach(d => { stats[d.situacion] = (stats[d.situacion] || 0) + 1; });
+        const labels = Object.keys(stats);
+        const vals = Object.values(stats);
+
+        const ctx = document.getElementById('chartBolsaStatus').getContext('2d');
+        if (bolsaChartInstance) bolsaChartInstance.destroy();
+
+        const colors = labels.map(l => {
+            const low = l.toLowerCase();
+            if(low.includes('trabajando')) return '#198754';
+            if(low.includes('disponible')) return '#0d6efd';
+            if(low.includes('exclusión')) return '#dc3545';
+            if(low.includes('suspensión')) return '#ffc107';
+            return '#adb5bd';
+        });
+
+        bolsaChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{ data: vals, backgroundColor: colors, borderWidth:1 }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    // INICIALIZAR AMBOS SISTEMAS
+    loadPASData();
+    loadBolsasData();
 </script>
 </body>
 </html>
